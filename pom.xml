@@ -7,7 +7,7 @@
    <name>User Import from a directory</name>
    <description>Import users from active directory or ldap</description>
 
-   <version>0.0.3</version>
+   <version>0.0.5</version>
    <packaging>bundle</packaging>
 
    <parent>
