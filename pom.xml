@@ -1,0 +1,62 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+   xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+   <modelVersion>4.0.0</modelVersion>
+
+   <artifactId>user-import-ldap</artifactId>
+   <name>User Import from a directory</name>
+   <description>Import users from active directory or ldap</description>
+
+   <version>0.0.3</version>
+   <packaging>bundle</packaging>
+
+   <parent>
+      <groupId>io.dbmaster.tools</groupId>
+      <artifactId>dbmaster-root</artifactId>
+      <version>1.10</version>
+   </parent>
+
+   <build>
+      <resources>
+         <resource>
+            <directory>src/main/groovy</directory>
+            <includes>
+               <include>**/*.groovy</include>
+            </includes>
+         </resource>
+         <resource>
+            <directory>src/main/resources</directory>
+         </resource>
+      </resources>
+      <plugins>
+         <plugin>
+            <groupId>org.apache.felix</groupId>
+            <artifactId>maven-bundle-plugin</artifactId>
+            <configuration>
+               <instructions>
+                  <Tags>inventory,sqlserver</Tags>
+                  <Author>slava.christin</Author>
+                  <Import-Package>io.dbmaster.api;version="1.10.0",io.dbmaster.tools;version="0.1.6"</Import-Package>  
+                  <!-- ,io.dbmaster.tools.datatracker;version="0.1.0" -->                
+               </instructions>
+            </configuration>
+         </plugin>
+         <plugin>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>build-helper-maven-plugin</artifactId>
+         </plugin>
+         <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-surefire-plugin</artifactId>
+         </plugin>
+         <plugin>
+            <groupId>org.codehaus.gmaven</groupId>
+            <artifactId>gmaven-plugin</artifactId>
+         </plugin>
+         <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-antrun-plugin</artifactId>
+         </plugin>
+      </plugins>
+   </build>
+</project>

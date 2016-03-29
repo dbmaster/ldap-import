@@ -1,0 +1,16 @@
+<tools>
+
+    <tool id="user-import-ldap" title="Import users from active directory">
+        <description></description>
+
+        <parameters>
+            <!-- parameter name="p_server"         title="Server"               type="string" required="true"  width="200" / -->
+            <parameter name="p_base_context"   title="Base Context"         type="string" required="false" width="400" />
+            <parameter name="p_ldap_query"     title="Directory Query"      type="string" required="true"  width="400" defaultValue="(objectClass=user)" />
+            <parameter name="p_attributes"     title="Attribute Mapping"    type="text"   required="false" />
+        </parameters>
+
+        <output  script="user-import-ldap.groovy" type="html" />
+    </tool>
+
+</tools>
