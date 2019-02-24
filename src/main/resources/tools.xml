@@ -4,10 +4,16 @@
         <description></description>
 
         <parameters>
-            <!-- parameter name="p_server"         title="Server"               type="string" required="true"  width="200" / -->
+            <parameter name="p_server"         title="Ldap Server"          type="string" required="true"  width="200" suggestion="project_ldap_connections" />
             <parameter name="p_base_context"   title="Base Context"         type="string" required="false" width="400" />
             <parameter name="p_ldap_query"     title="Directory Query"      type="string" required="true"  width="400" defaultValue="(objectClass=user)" />
             <parameter name="p_attributes"     title="Attribute Mapping"    type="text"   required="false" />
+            <parameter name="p_action"         title="Action"               type="string" required="true">
+                <values>
+                    <string>Preview</string>
+                    <string>Import</string>
+                </values>
+            </parameter>
         </parameters>
 
         <output  script="user-import-ldap.groovy" type="html" />
