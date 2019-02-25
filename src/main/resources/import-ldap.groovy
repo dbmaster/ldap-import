@@ -149,6 +149,7 @@ if ("Contacts".equals(p_object_type)) {
             contact = inventoryContacts.get(contactEmail)
             if (contact==null) {
                 contact = new Contact()
+                contact.setProject(dbm.getService(com.branegy.service.base.api.ProjectService.class).getCurrentProject()); // TODO: delete in 1.12
                 logger.debug("Creating a new Contact")
             } else {
                 oldProperties = contact.getCustomMap();
@@ -159,7 +160,7 @@ if ("Contacts".equals(p_object_type)) {
             if (go) {
                 newProperties["LastSyncDate"] = lastSyncDate;
                 contact.getCustomMap().putAll(newProperties);
-                inventoryContacts.saveContact(contact);
+                contactService.saveContact(contact);
             }
             inventoryContacts.remove(contactEmail);
         }
@@ -192,6 +193,7 @@ if ("Contacts".equals(p_object_type)) {
             server = inventoryServers.get(serverName)
             if (server==null) {
                 server = new Server()
+                server.setProject(dbm.getService(com.branegy.service.base.api.ProjectService.class).getCurrentProject());  // TODO: delete in 1.12
                 logger.debug("Creating a new Server")
             } else {
                 oldProperties = server.getCustomMap();
