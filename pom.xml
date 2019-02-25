@@ -3,11 +3,11 @@
 
    <modelVersion>4.0.0</modelVersion>
 
-   <artifactId>user-import-ldap</artifactId>
-   <name>User Import from a directory</name>
-   <description>Import users from active directory or ldap</description>
+   <artifactId>import-ldap</artifactId>
+   <name>Import from a directory</name>
+   <description>Import from active directory or ldap</description>
 
-   <version>0.1.0</version>
+   <version>0.2.0-SNAPSHOT</version>
    <packaging>bundle</packaging>
 
    <parent>

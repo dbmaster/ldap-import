@@ -1,22 +1,33 @@
 <tools>
 
-    <tool id="user-import-ldap" title="Import users from active directory">
+    <tool id="import-ldap" title="Import from active directory">
         <description></description>
 
         <parameters>
+            <parameter name="p_object_type"    title="Object Type" type="string" required="true" defaultValue="">
+               <values>
+                  <string>Servers</string>
+                  <string>Contacts</string>
+               </values>
+            </parameter>
+            
             <parameter name="p_server"         title="Ldap Server"          type="string" required="true"  width="200" suggestion="project_ldap_connections" />
-            <parameter name="p_base_context"   title="Base Context"         type="string" required="false" width="400" />
-            <parameter name="p_ldap_query"     title="Directory Query"      type="string" required="true"  width="400" defaultValue="(objectClass=user)" />
-            <parameter name="p_attributes"     title="Attribute Mapping"    type="text"   required="false" />
+            <parameter name="p_base_context"   title="Base Context"         type="string" required="false" width="200" />
             <parameter name="p_action"         title="Action"               type="string" required="true">
                 <values>
                     <string>Preview</string>
                     <string>Import</string>
                 </values>
             </parameter>
+            <parameter name="p_ldap_query"     title="Directory Query"      type="string" required="true"  width="200" defaultValue="(objectClass=user)" />
+            <parameter name="p_object_filter"  title="Inventory Object Filter"    type="string"   required="false" width="200"/>
+            <parameter name="p_source"         title="Source"    type="string"   required="false" width="200"/>
+            
+            <parameter name="p_attributes"     title="Attribute Mapping (Field=LDAP)"    type="text"   required="false" width="200" height="5"/>
+            <parameter name="p_distinguished_name_filter"  title="Distinguished Name Filter"    type="text"   required="false" width="200" height="5"/>
         </parameters>
 
-        <output  script="user-import-ldap.groovy" type="html" />
+        <output  script="import-ldap.groovy" type="html" />
     </tool>
 
 </tools>
