@@ -5,6 +5,7 @@ import com.branegy.inventory.model.*
 import java.util.Map.Entry
 import io.dbmaster.tools.LdapSearch
 import javax.naming.directory.BasicAttribute
+import javax.naming.directory.SearchResult
 
 logger.debug("Object ${p_object_type}")
 logger.debug("Action ${p_action}")
@@ -23,6 +24,42 @@ def convertMapping = { mappingText ->
     return m
 }
 
+class DnSuffixPatternList{
+    private final List<String> includes = [];
+    private final List<String> excludes = [];
+    
+    public DnSuffixPatternList(String config) {
+        if (config == null || config.isEmpty()) {
+            return;
+        }
+        for (String line:config.split("(\\s*[\\r\\n]+\\s*)+")) {
+            if (line.trim().isEmpty()) {
+                continue;
+            }
+            if (line[0]=='-') {
+                excludes.add(line.substring(1));
+            } else if (line[0]=='+') {
+                includes.add(line.substring(1));
+            } else {
+                logger.error("Expected starts with +/-: {}",line);
+            }
+        }
+        
+    }
+    
+    public boolean accept(SearchResult sr) {
+        String dn = sr.getNameInNamespace();
+        if (includes.isEmpty()) {
+            return !excludes.find{it-> dn.endsWith(it)};
+        } else {
+            return includes.find{it-> dn.endsWith(it)};
+        }
+    }
+}
+
+def dnPattern = new DnSuffixPatternList(p_distinguished_name_filter);
+
+
 def ldap = new LdapSearch(dbm, logger)
 def mapping = convertMapping(p_attributes)
 def go = p_action.equals("Import")
@@ -31,9 +68,10 @@ def attributes = mapping.values().collect()
 attributes.add("name")
 attributes.add("mail")
 attributes.add("displayName")
-attributes.add("distinguishedName")
 
-def ldapObjects = ldap.search(p_server, p_base_context, p_ldap_query, attributes.join(";"))
+List<SearchResult> ldapObjects = ldap.search(p_server, p_base_context, p_ldap_query, attributes.join(";"))
+ldapObjects =ldapObjects.findAll{it->dnPattern.accept(it)};
+
 logger.info("Found ${ldapObjects.size()} objects")
 
 def getValue = { attributeSet, attributeId ->
@@ -73,10 +111,7 @@ def processRow = { name, oldObject, newObject ->
         }
     }
     
-    print "<tr>"
     if (oldObject !=null && newObject!=null) {
-        print "<td>${name}</td>"
-        
         boolean equals = true;
         for (Entry e:newObject.entrySet()) {
             if (!e.value.equals(oldObject[e.key])) {
@@ -84,7 +119,12 @@ def processRow = { name, oldObject, newObject ->
                 break;
             }
         }
+        if (equals && !p_include_none) {
+            return;
+        }
         
+        print "<tr>"
+        print "<td>${name}</td>"
         print "<td>${equals?"None":"Changed"}</td>"
         print "<td>"
             if (!equals) {
@@ -105,7 +145,9 @@ def processRow = { name, oldObject, newObject ->
                 }
             }
         print "</td>"
+        print "</tr>"
     } else if (oldObject != null) {
+        print "<tr>"
         print "<td>${name}</td>"
         print "<td>Deleted</td>"
         print "<td>"
@@ -113,7 +155,9 @@ def processRow = { name, oldObject, newObject ->
                 print "${k} with ${v1} was removed</br>";
             }
         print "</td>"
+        print "</tr>"
     } else {
+        print "<tr>"
         print "<td>${name}</td>"
         print "<td>New</td>"
         print "<td>"
@@ -121,8 +165,8 @@ def processRow = { name, oldObject, newObject ->
                 print "${k} set to ${v2}</br>";
             }
         print "</td>"
+        print "</tr>"
     }
-    print "</tr>"
 }
 
 Date lastSyncDate = new Date();

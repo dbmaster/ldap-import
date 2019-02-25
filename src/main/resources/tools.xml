@@ -22,9 +22,10 @@
             <parameter name="p_ldap_query"     title="Directory Query"      type="string" required="true"  width="200" defaultValue="(objectClass=user)" />
             <parameter name="p_object_filter"  title="Inventory Object Filter"    type="string"   required="false" width="200"/>
             <parameter name="p_source"         title="Source"    type="string"   required="false" width="200"/>
+            <parameter name="p_include_none"   title="Show unchanged"    type="boolean"   required="true" width="200" defaultValue="true"/>
             
             <parameter name="p_attributes"     title="Attribute Mapping (Field=LDAP)"    type="text"   required="false" width="200" height="5"/>
-            <parameter name="p_distinguished_name_filter"  title="Distinguished Name Filter"    type="text"   required="false" width="200" height="5"/>
+            <parameter name="p_distinguished_name_filter"  title="Distinguished Name Filter"    type="text"   required="false" width="200" height="5"/>                <!-- regexp = "((\s*[\r\n]+\s*)+([+-].+)(\s*[\r\n]+\s*)+)*"  -->
         </parameters>
 
         <output  script="import-ldap.groovy" type="html" />
