@@ -50,9 +50,9 @@ class DnSuffixPatternList{
     public boolean accept(SearchResult sr) {
         String dn = sr.getNameInNamespace();
         if (includes.isEmpty()) {
-            return !excludes.find{it-> dn.endsWith(it)};
+            return excludes.find{it-> dn.endsWith(it)} == null;
         } else {
-            return includes.find{it-> dn.endsWith(it)};
+            return includes.find{it-> dn.endsWith(it)} != null;
         }
     }
 }
