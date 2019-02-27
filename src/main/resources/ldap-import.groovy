@@ -24,7 +24,7 @@ def convertMapping = { mappingText ->
     return m
 }
 
-class DnSuffixPatternList{
+class DnSuffixPatternList {
     private final List<String> includes = [];
     private final List<String> excludes = [];
     
@@ -59,7 +59,6 @@ class DnSuffixPatternList{
 
 def dnPattern = new DnSuffixPatternList(p_distinguished_name_filter);
 
-
 def ldap = new LdapSearch(dbm, logger)
 def mapping = convertMapping(p_attributes)
 def go = p_action.equals("Import")
@@ -70,7 +69,7 @@ attributes.add("mail")
 attributes.add("displayName")
 
 List<SearchResult> ldapObjects = ldap.search(p_server, p_base_context, p_ldap_query, attributes.join(";"))
-ldapObjects =ldapObjects.findAll{it->dnPattern.accept(it)};
+ldapObjects = ldapObjects.findAll{ it -> dnPattern.accept(it) }
 
 logger.info("Found ${ldapObjects.size()} objects")
 
@@ -98,10 +97,11 @@ println """
         <td>Object Name</td>
         <td>Status</td>
         <td>Changes</td>
+        <td>Ldap Distinguished Name</td>
     </tr>
 """;
 
-def processRow = { name, oldObject, newObject ->
+def processRow = { name, oldObject, newObject, ldapDn ->
     if (newObject!=null) {
         def it = newObject.values().iterator();
         while (it.hasNext()) {
@@ -114,7 +114,7 @@ def processRow = { name, oldObject, newObject ->
     if (oldObject !=null && newObject!=null) {
         boolean equals = true;
         for (Entry e:newObject.entrySet()) {
-            if (!e.value.equals(oldObject[e.key])) {
+            if (!e.key.equals("ServerName") && !e.value.equals(oldObject[e.key])) {
                 equals = false;
                 break;
             }
@@ -131,20 +131,21 @@ def processRow = { name, oldObject, newObject ->
                 newObject.each{ k,v2 ->
                     def v1 = oldObject.get(k);
                     if (v1!=null && v2!=null) {
-                        if (!v1.equals(v2)) {
-                            print "${k} changed from ${v1} to ${v2}</br>";
+                        if (!k.equals("ServerName") && !v1.equals(v2)) {
+                            print "${k} changed from ${v1} to ${v2}</br>"
                         }
                     } else if (v1==null) {
-                        print "${k} set to ${v2}</br>";
+                        print "${k} set to ${v2}</br>"
                     }
                 }
                 oldObject.each{ k,v1 ->
-                    if (!newObject.containsKey(k) && !"LastSyncDate".equals(k)) {
-                        print "${k} with ${v1} was removed</br>";
+                    if (mapping.containsKey(k) && !newObject.containsKey(k) && !"LastSyncDate".equals(k)) {
+                        print "${k} with value ${v1} was removed</br>"
                     }
                 }
             }
         print "</td>"
+	print "<td>${ldapDn}</td>"
         print "</tr>"
     } else if (oldObject != null) {
         print "<tr>"
@@ -152,9 +153,10 @@ def processRow = { name, oldObject, newObject ->
         print "<td>Deleted</td>"
         print "<td>"
             oldObject.each{ k,v1 ->
-                print "${k} with ${v1} was removed</br>";
+                if (!k.equals("ServerName")) { print "${k}: ${v1}</br>"; }
             }
         print "</td>"
+	print "<td></td>"
         print "</tr>"
     } else {
         print "<tr>"
@@ -162,9 +164,10 @@ def processRow = { name, oldObject, newObject ->
         print "<td>New</td>"
         print "<td>"
             newObject.each{ k,v2 ->
-                print "${k} set to ${v2}</br>";
+                if (!k.equals("ServerName")) { print "${k}: ${v2}</br>"; }
             }
         print "</td>"
+	print "<td>${ldapDn}</td>"
         print "</tr>"
     }
 }
@@ -178,7 +181,7 @@ if ("Contacts".equals(p_object_type)) {
     Contact contact;
     ldapObjects.each { ldapObject ->
         def attrs = ldapObject.getAttributes()
-        logger.debug("{}",ldapObject)
+        logger.debug("{}", ldapObject)
         
         def oldProperties = null;
         def newProperties = [:];
@@ -199,7 +202,7 @@ if ("Contacts".equals(p_object_type)) {
                 oldProperties = contact.getCustomMap();
             }
             
-            processRow(contactEmail, oldProperties, newProperties);
+            processRow(contactEmail, oldProperties, newProperties, ldapObject.getNameInNamespace());
             
             if (go) {
                 newProperties["LastSyncDate"] = lastSyncDate;
@@ -217,12 +220,12 @@ if ("Contacts".equals(p_object_type)) {
     }*/
 } else if ("Servers".equals(p_object_type)) {
     def inventoryService = dbm.getService(InventoryService.class)
-    Map<String,Server> inventoryServers = inventoryService.getServerList(new QueryRequest(p_object_filter)).collectEntries{[(it.serverName): it]}
+    Map<String,Server> inventoryServers = inventoryService.getServerList(new QueryRequest(p_object_filter)).collectEntries{[(it.serverName.toUpperCase()): it]}
     
     Server server;
     ldapObjects.each { ldapObject ->
         def attrs = ldapObject.getAttributes()
-        logger.debug("{}",ldapObject)
+        logger.debug("{}", ldapObject)
         
         def oldProperties = null;
         def newProperties = [:];
@@ -234,32 +237,31 @@ if ("Contacts".equals(p_object_type)) {
         
         def serverName = newProperties["ServerName"]
         if (serverName!=null) {
-            server = inventoryServers.get(serverName)
+            server = inventoryServers.get(serverName.toUpperCase())
             if (server==null) {
                 server = new Server()
-                server.setProject(dbm.getService(com.branegy.service.base.api.ProjectService.class).getCurrentProject());  // TODO: delete in 1.12
+                server.setProject(dbm.getService(com.branegy.service.base.api.ProjectService.class).getCurrentProject())  // TODO: delete in 1.12
                 logger.debug("Creating a new Server")
             } else {
                 oldProperties = server.getCustomMap();
             }
             
-            processRow(serverName, oldProperties, newProperties);
+            processRow(serverName, oldProperties, newProperties, ldapObject.getNameInNamespace())
             
             if (go) {
                 newProperties["LastSyncDate"] = lastSyncDate;
                 server.getCustomMap().putAll(newProperties);
                 inventoryService.saveServer(server);
             }
-            inventoryServers.remove(serverName);
+            inventoryServers.remove(serverName.toUpperCase());
         }
     }
-    inventoryServers.each{k,v ->
-        processRow(k, v.getCustomMap(), null);
+    inventoryServers.each{k, v ->
+        processRow(k, v.getCustomMap(), null, null)
         if (go) {
-            inventoryService.deleteServer(v.getId());
+            inventoryService.deleteServer(v.getId())
         }
     }
 }
 
 println """</table>""";
-

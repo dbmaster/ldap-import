@@ -3,11 +3,10 @@
 
    <modelVersion>4.0.0</modelVersion>
 
-   <artifactId>import-ldap</artifactId>
-   <name>Import from a directory</name>
-   <description>Import from active directory or ldap</description>
-
-   <version>0.2.0-SNAPSHOT</version>
+   <artifactId>ldap-import</artifactId>
+   <name>LDAP::Import</name>
+   <description>Imports active directory or ldap objects into dbmaster inventory</description>
+   <version>0.2.1-SNAPSHOT</version>
    <packaging>bundle</packaging>
 
    <parent>
