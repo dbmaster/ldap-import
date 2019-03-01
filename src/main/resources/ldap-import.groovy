@@ -217,9 +217,9 @@ def process = {List<?> list,
         def newProperties = [:];
         
         newProperties["Source"] = p_source;
-        newProperties.putAll(consts);                  // add constants
+        newProperties.putAll(consts); // add constants
         
-        mapping.each { invAttribute, ldapAttribute ->  // add constants
+        mapping.each { invAttribute, ldapAttribute ->
             if (ldapAttribute == "DistinguishedName") {
                 newProperties[invAttribute] = ldapObject.getNameInNamespace();
                 return;
@@ -276,7 +276,7 @@ if ("Contacts".equals(p_object_type)) {
         { m   -> m["ContactName"]},
         Contact.metaClass.&invokeConstructor,
         { o   -> contactService.saveContact(o)},
-        null //{ o -> contactService.deleteContact(o.getId())}
+        null, //{ o -> contactService.deleteContact(o.getId())}
         ["ContactName"] as Set,
     );
     
@@ -294,12 +294,12 @@ if ("Contacts".equals(p_object_type)) {
 } else if ("SecurityObjects".equals(p_object_type)) {
     def inventoryService = dbm.getService(InventoryService.class)
     process(inventoryService.getSecurityObjectList(new QueryRequest(p_object_filter)),
-            { m,o -> m["Source"]+"/"+m["ServerName"]+"/"+m["Id"]},
-            { m   -> m["Name"]},
-            SecurityObject.metaClass.&invokeConstructor,
-            { o -> inventoryService.saveSecurityObject(o)},
-            { o -> inventoryService.deleteSecurityObject(o.getId())},
-            ["Source","ServerName","Id","Name"] as Set,
+        { m,o -> m["Source"]+"/"+m["ServerName"]+"/"+m["Id"]},
+        { m   -> m["Name"]},
+        SecurityObject.metaClass.&invokeConstructor,
+        { o -> inventoryService.saveSecurityObject(o)},
+        { o -> inventoryService.deleteSecurityObject(o.getId())},
+        ["Source","ServerName","Id","Name"] as Set,
     );
 }
 
