@@ -6,22 +6,37 @@ import java.util.Map.Entry
 import io.dbmaster.tools.LdapSearch
 import javax.naming.directory.BasicAttribute
 import javax.naming.directory.SearchResult
+import com.branegy.persistence.custom.BaseCustomEntity
+
+import java.util.function.BiFunction
+import java.util.function.Consumer
+import java.util.function.Function
+import java.util.function.Supplier
 
 logger.debug("Object ${p_object_type}")
 logger.debug("Action ${p_action}")
 
 def convertMapping = { mappingText ->
     def m = [:]
+    def consts = [:]
     if (mappingText!=null && !mappingText.isEmpty()) {
         for (String row : mappingText.split("(\r\n|\n)")) {
             if (row.contains('=') && !row.trim().isEmpty()) {
                 String[] kv = row.split("=",2);
+                kv[0] = kv[0].trim();
+                kv[1] = kv[1].trim();
+                
+                if (kv[1].length()>2 &&  kv[1].startsWith("\"") && kv[1].endsWith("\"")) {
+                    logger.debug("с=${consts}  ${kv[0]} ${kv[1]} " )
+                    consts[kv[0]] = kv[1].substring(1,kv[1].length()-1);
+                    continue;
+                }
                 logger.debug("m=${m}  ${kv[0]} ${kv[1]} " )
                 m[kv[0]] = kv[1].isEmpty() ? null : kv[1];
             }
         }
     }
-    return m
+    return [m,consts];
 }
 
 class DnSuffixPatternList {
@@ -60,7 +75,7 @@ class DnSuffixPatternList {
 def dnPattern = new DnSuffixPatternList(p_distinguished_name_filter);
 
 def ldap = new LdapSearch(dbm, logger)
-def mapping = convertMapping(p_attributes)
+def (mapping,consts) = convertMapping(p_attributes)
 def go = p_action.equals("Import")
 
 def attributes = mapping.values().collect() 
@@ -82,7 +97,7 @@ def getValue = { attributeSet, attributeId ->
             return attrValues.get()
         } else {
             def result = []
-            def values = value.getAll()
+            def values = attrValues.getAll()
             while (values.hasMore()) {
                 result.add(values.next())
             }
@@ -184,94 +199,108 @@ def processRow = { name, oldObject, newObject, ldapDn ->
 
 Date lastSyncDate = new Date();
 
+/*def <T extends BaseCustomEntity> x =*/
+def process = {List<?> list, 
+               BiFunction<Map<String,Object>,Object,String> key,
+               Function<Map<String,Object>> name, 
+               Supplier<?> create,  
+               Consumer<?> save, 
+               Consumer<?> delete,
+               Set<String> requiredFields
+               -> 
+    Map<String,?> inventoryObjects = list.collectEntries{[(key.apply(it.getCustomMap(),it).toUpperCase()): it]};
+    ldapObjects.each { ldapObject ->
+        def attrs = ldapObject.getAttributes()
+        logger.debug("{}", ldapObject)
+        
+        def oldProperties = null;
+        def newProperties = [:];
+        
+        newProperties["Source"] = p_source;
+        newProperties.putAll(consts);                  // add constants
+        
+        mapping.each { invAttribute, ldapAttribute ->  // add constants
+            if (ldapAttribute == "DistinguishedName") {
+                newProperties[invAttribute] = ldapObject.getNameInNamespace();
+                return;
+            }
+            
+            def value = getValue(attrs,ldapAttribute)
+            newProperties[invAttribute] = value
+        }
+        
+        logger.debug("=> {}",newProperties)
+        
+        requiredFields.forEach({requiredField->
+            if (!newProperties.containsKey(requiredField)) {
+                throw new IllegalArgumentException("Field '"+requiredField+"' is not specified");
+            } else if (newProperties[requiredField]==null) {
+                throw new IllegalArgumentException("Field '"+requiredField+"' is null");
+            }
+        });
+        
+        def keyId = key.apply(newProperties,ldapObject) 
+        if (keyId!=null) {
+            def object = inventoryObjects.get(keyId.toUpperCase())
+            if (object==null) {
+                object = create.get();
+                object.setProject(dbm.getService(com.branegy.service.base.api.ProjectService.class).getCurrentProject())  // TODO: delete in 1.12
+                logger.debug("Creating a new objects")
+            } else {
+                oldProperties = object.getCustomMap();
+            }
+            
+            processRow(name.apply(newProperties), oldProperties, newProperties, ldapObject.getNameInNamespace())
+            
+            if (go && save!=null) {
+                newProperties["LastSyncDate"] = lastSyncDate;
+                object.getCustomMap().putAll(newProperties);
+                save.accept(object);
+            }
+            inventoryObjects.remove(keyId.toUpperCase());
+        }
+    }
+    inventoryObjects.each{k, v ->
+        processRow(k, v.getCustomMap(), null, null)
+        if (go && delete != null) {
+            delete.accept(v);
+        }
+    }
+    
+}
+
 if ("Contacts".equals(p_object_type)) {
     def contactService = dbm.getService(ContactService.class)
-    Map<String,Contact> inventoryContacts = contactService.getContactList(new QueryRequest(p_object_filter)).collectEntries{[(it.contactName): it]}
+    process(contactService.getContactList(new QueryRequest(p_object_filter)),
+        { m,o -> m["ContactName"]},
+        { m   -> m["ContactName"]},
+        Contact.metaClass.&invokeConstructor,
+        { o   -> contactService.saveContact(o)},
+        null //{ o -> contactService.deleteContact(o.getId())}
+        ["ContactName"] as Set,
+    );
     
-    Contact contact;
-    ldapObjects.each { ldapObject ->
-        def attrs = ldapObject.getAttributes()
-        logger.debug("{}", ldapObject)
-        
-        def oldProperties = null;
-        def newProperties = [:];
-        mapping.each { invAttribute, ldapAttribute ->
-            def value = getValue(attrs,ldapAttribute)
-            newProperties[invAttribute] = value
-        }
-        newProperties["Source"] = p_source;
-        
-        def contactEmail = newProperties["ContactEmail"]
-        if (contactEmail!=null) {
-            contact = inventoryContacts.get(contactEmail)
-            if (contact==null) {
-                contact = new Contact()
-                contact.setProject(dbm.getService(com.branegy.service.base.api.ProjectService.class).getCurrentProject()); // TODO: delete in 1.12
-                logger.debug("Creating a new Contact")
-            } else {
-                oldProperties = contact.getCustomMap();
-            }
-            
-            processRow(contactEmail, oldProperties, newProperties, ldapObject.getNameInNamespace());
-            
-            if (go) {
-                newProperties["LastSyncDate"] = lastSyncDate;
-                contact.getCustomMap().putAll(newProperties);
-                contactService.saveContact(contact);
-            }
-            inventoryContacts.remove(contactEmail);
-        }
-    }
-    /*inventoryContacts.each{k,v ->
-        processRow(k, v.getCustomMap(), null);
-        if (go) {
-            contactService.deleteContact(v.getId());
-        }
-    }*/
 } else if ("Servers".equals(p_object_type)) {
     def inventoryService = dbm.getService(InventoryService.class)
-    Map<String,Server> inventoryServers = inventoryService.getServerList(new QueryRequest(p_object_filter)).collectEntries{[(it.serverName.toUpperCase()): it]}
+    process(inventoryService.getServerList(new QueryRequest(p_object_filter)),
+        { m,o -> m["ServerName"]},
+        { m   -> m["ServerName"]},
+        Server.metaClass.&invokeConstructor,
+        { o -> inventoryService.saveServer(o)},
+        { o -> inventoryService.deleteServer(o.getId())},
+        ["ServerName"] as Set,
+    );
     
-    Server server;
-    ldapObjects.each { ldapObject ->
-        def attrs = ldapObject.getAttributes()
-        logger.debug("{}", ldapObject)
-        
-        def oldProperties = null;
-        def newProperties = [:];
-        mapping.each { invAttribute, ldapAttribute ->
-            def value = getValue(attrs,ldapAttribute)
-            newProperties[invAttribute] = value
-        }
-        newProperties["Source"] = p_source;
-        
-        def serverName = newProperties["ServerName"]
-        if (serverName!=null) {
-            server = inventoryServers.get(serverName.toUpperCase())
-            if (server==null) {
-                server = new Server()
-                server.setProject(dbm.getService(com.branegy.service.base.api.ProjectService.class).getCurrentProject())  // TODO: delete in 1.12
-                logger.debug("Creating a new Server")
-            } else {
-                oldProperties = server.getCustomMap();
-            }
-            
-            processRow(serverName, oldProperties, newProperties, ldapObject.getNameInNamespace())
-            
-            if (go) {
-                newProperties["LastSyncDate"] = lastSyncDate;
-                server.getCustomMap().putAll(newProperties);
-                inventoryService.saveServer(server);
-            }
-            inventoryServers.remove(serverName.toUpperCase());
-        }
-    }
-    inventoryServers.each{k, v ->
-        processRow(k, v.getCustomMap(), null, null)
-        if (go) {
-            inventoryService.deleteServer(v.getId())
-        }
-    }
+} else if ("SecurityObjects".equals(p_object_type)) {
+    def inventoryService = dbm.getService(InventoryService.class)
+    process(inventoryService.getSecurityObjectList(new QueryRequest(p_object_filter)),
+            { m,o -> m["Source"]+"/"+m["ServerName"]+"/"+m["Id"]},
+            { m   -> m["Name"]},
+            SecurityObject.metaClass.&invokeConstructor,
+            { o -> inventoryService.saveSecurityObject(o)},
+            { o -> inventoryService.deleteSecurityObject(o.getId())},
+            ["Source","ServerName","Id","Name"] as Set,
+    );
 }
 
 println """</tbody></table>""";

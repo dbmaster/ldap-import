@@ -9,6 +9,7 @@
                <values>
                   <string>Servers</string>
                   <string>Contacts</string>
+                  <string>SecurityObjects</string>
                </values>
             </parameter>          
             <parameter name="p_object_filter"  title="Inventory Filter" type="string"   required="false" width="200" />
