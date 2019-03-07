@@ -1,6 +1,6 @@
 <tools>
 
-    <tool id="ldap-import" title="LDAP::Import">
+    <tool id="ldap-import" title="LDAP::Import" projectTypes="inventory">
         <description>Imports active directory or ldap objects into dbmaster inventory</description>
 
         <parameters>
