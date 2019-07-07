@@ -35,7 +35,7 @@
                <instructions>
                   <Tags>inventory,sqlserver</Tags>
                   <Author>slava.christin</Author>
-                  <Import-Package>io.dbmaster.api;version="1.10.0",io.dbmaster.tools;version="0.1.6"</Import-Package>  
+                  <Import-Package>io.dbmaster.api;version="[1.12,2.1)",io.dbmaster.tools;version="0.1.6"</Import-Package>
                </instructions>
             </configuration>
          </plugin>
