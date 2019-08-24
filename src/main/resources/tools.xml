@@ -15,8 +15,7 @@
             <parameter name="p_object_filter"  title="Inventory Filter" type="string"   required="false" width="200" />
             <parameter name="p_base_context"   title="Ldap Base Context"         type="string" required="false" width="200" />
             <parameter name="p_ldap_query"     title="Ldap Query"      type="string" required="true"  width="200" defaultValue="(objectClass=user)" />
-            <parameter name="p_source"         title="Source"    type="string"   required="false" width="200"/>
-
+            
             <parameter name="p_action"         title="Action"               type="string" required="true">
                 <values>
                     <string>Preview</string>

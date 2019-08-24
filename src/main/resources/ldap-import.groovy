@@ -7,18 +7,27 @@ import io.dbmaster.tools.LdapSearch
 import javax.naming.directory.BasicAttribute
 import javax.naming.directory.SearchResult
 import com.branegy.persistence.custom.BaseCustomEntity
+import java.util.LinkedHashSet
 
 import java.util.function.BiFunction
 import java.util.function.Consumer
 import java.util.function.Function
 import java.util.function.Supplier
 
+import java.util.stream.Stream
+import static java.util.stream.Collectors.toCollection
+
+import org.apache.commons.jexl3.JexlEngine
+import org.apache.commons.jexl3.JexlBuilder
+import org.apache.commons.jexl3.JexlExpression
+import org.apache.commons.jexl3.JexlContext
+
 logger.debug("Object ${p_object_type}")
 logger.debug("Action ${p_action}")
 
 def convertMapping = { mappingText ->
-    def m = [:]
-    def consts = [:]
+    JexlEngine jexl = new JexlBuilder().strict(true).debug(true).create();
+    def jexlExps = [:]
     if (mappingText!=null && !mappingText.isEmpty()) {
         for (String row : mappingText.split("(\r\n|\n)")) {
             if (row.contains('=') && !row.trim().isEmpty()) {
@@ -26,17 +35,11 @@ def convertMapping = { mappingText ->
                 kv[0] = kv[0].trim();
                 kv[1] = kv[1].trim();
                 
-                if (kv[1].length()>2 &&  kv[1].startsWith("\"") && kv[1].endsWith("\"")) {
-                    logger.debug("с=${consts}  ${kv[0]} ${kv[1]} " )
-                    consts[kv[0]] = kv[1].substring(1,kv[1].length()-1);
-                    continue;
-                }
-                logger.debug("m=${m}  ${kv[0]} ${kv[1]} " )
-                m[kv[0]] = kv[1].isEmpty() ? null : kv[1];
+                jexlExps[kv[0]] = kv[1].isEmpty() ? null : jexl.createScript( kv[1]);
             }
         }
     }
-    return [m,consts];
+    return jexlExps;
 }
 
 class DnSuffixPatternList {
@@ -75,13 +78,30 @@ class DnSuffixPatternList {
 def dnPattern = new DnSuffixPatternList(p_distinguished_name_filter);
 
 def ldap = new LdapSearch(dbm, logger)
-def (mapping,consts) = convertMapping(p_attributes)
+def mapping = convertMapping(p_attributes)
 def go = p_action.equals("Import")
 
-def attributes = mapping.values().collect() 
+def attributes = mapping.values().stream()
+                                 .flatMap({ exp -> 
+                                       def vars = exp.getVariables();
+                                       if (vars == null || vars.isEmpty()) {
+                                           return Stream.empty();
+                                       }
+                                       return vars.stream().flatMap({varList -> 
+                                            if (varList.isEmpty()) {
+                                                return Stream.empty();
+                                            } else {
+                                                return varList.stream().limit(1);
+                                            }
+                                       });
+                                 })
+                                 .filter({ exp -> exp!=null})
+                                 .collect(toCollection({new LinkedHashSet()})); 
 attributes.add("name")
 attributes.add("mail")
 attributes.add("displayName")
+
+logger.debug("Load attributes to load {}",attributes);
 
 List<SearchResult> ldapObjects = ldap.search(p_server, p_base_context, p_ldap_query, attributes.join(";"))
 ldapObjects = ldapObjects.findAll{ it -> dnPattern.accept(it) }
@@ -211,23 +231,37 @@ def process = {List<?> list,
     Map<String,?> inventoryObjects = list.collectEntries{[(key.apply(it.getCustomMap(),it).toUpperCase()): it]};
     ldapObjects.each { ldapObject ->
         def attrs = ldapObject.getAttributes()
-        logger.debug("{}", ldapObject)
+        logger.debug("{} {}", ldapObject, attrs)
         
         def oldProperties = null;
         def newProperties = [:];
         
-        newProperties["Source"] = p_source;
-        newProperties.putAll(consts); // add constants
+        JexlContext ctx = new JexlContext() {
+            public Object get(String _name) {
+               return getValue(attrs,_name); 
+            }
+            
+            public void set(String _name, Object value) {
+                throw new UnsupportedOperationException("Not implemented");
+            }
+            
+            public boolean has(String _name) {
+                return getValue(attrs,_name)!=null;
+            }
+        };
         
-        mapping.each { invAttribute, ldapAttribute ->
-            if (ldapAttribute == "DistinguishedName") {
+        mapping.each { invAttribute, exp ->
+            
+            if (invAttribute == "DistinguishedName") {
                 newProperties[invAttribute] = ldapObject.getNameInNamespace();
                 return;
             }
             
-            def value = getValue(attrs,ldapAttribute)
-            newProperties[invAttribute] = value
+            def result = exp.evaluate(ctx);
+            logger.debug("{} eval as {}",invAttribute,result )
+            newProperties[invAttribute] = result;
         }
+            
         
         logger.debug("=> {}",newProperties)
         
@@ -241,7 +275,7 @@ def process = {List<?> list,
         
         def keyId = key.apply(newProperties,ldapObject) 
         if (keyId!=null) {
-            def object = inventoryObjects.get(keyId.toUpperCase())
+            def object = inventoryObjects.get(keyId.toString().toUpperCase())
             if (object==null) {
                 object = create.get();
                 object.setProject(dbm.getService(com.branegy.service.base.api.ProjectService.class).getCurrentProject())  // TODO: delete in 1.12
@@ -257,7 +291,7 @@ def process = {List<?> list,
                 object.getCustomMap().putAll(newProperties);
                 save.accept(object);
             }
-            inventoryObjects.remove(keyId.toUpperCase());
+            inventoryObjects.remove(keyId.toString().toUpperCase());
         }
     }
     inventoryObjects.each{k, v ->
