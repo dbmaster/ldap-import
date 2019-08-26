@@ -26,7 +26,7 @@ logger.debug("Object ${p_object_type}")
 logger.debug("Action ${p_action}")
 
 def convertMapping = { mappingText ->
-    JexlEngine jexl = new JexlBuilder().strict(true).debug(true).create();
+    JexlEngine jexl = new JexlBuilder().strict(false).debug(true).create();
     def jexlExps = [:]
     if (mappingText!=null && !mappingText.isEmpty()) {
         for (String row : mappingText.split("(\r\n|\n)")) {
