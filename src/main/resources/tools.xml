@@ -22,8 +22,24 @@
                     <string>Import</string>
                 </values>
             </parameter>
-
-            <parameter name="p_include_none"   title="Show unchanged"    type="boolean"   required="true" width="200" defaultValue="true"/>           
+            
+            <parameter name="p_delete_action"  title="Delete Action" type="string" required="true" defaultValue="Set Inactive">
+                <values>
+                    <string>Set Inactive</string>
+                    <string>Delete from Inventory</string>
+                </values>
+            </parameter>
+            
+            <parameter name="p_status_filter"   title="Status filter"  width="200" type="string" required="true" multiple="true" defaultValue="New,Changed,Deleted,Unchanged">
+                <values>
+                    <string>New</string>
+                    <string>Changed</string>
+                    <string>Deleted</string>
+                    <string>Unchanged</string>
+                </values>
+            </parameter>
+            
+            
             <parameter name="p_attributes"     title="Attribute Mapping (Field=LDAP)"    type="text"   required="false" width="200" height="5"/>
             <!-- regexp = "((\s*[\r\n]+\s*)+([+-].+)(\s*[\r\n]+\s*)+)*"  -->
             <parameter name="p_distinguished_name_filter"  title="Distinguished Name Filter"    type="text"   required="false" width="200" height="5"/>               

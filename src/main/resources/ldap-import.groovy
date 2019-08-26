@@ -77,6 +77,13 @@ class DnSuffixPatternList {
 
 def dnPattern = new DnSuffixPatternList(p_distinguished_name_filter);
 
+def show_new       = p_status_filter.contains("New");
+def show_changed   = p_status_filter.contains("Changed");
+def show_deleted   = p_status_filter.contains("Deleted");
+def show_unchanged = p_status_filter.contains("Unchanged");
+
+def set_inactive = p_delete_action == "Set Inactive";
+
 def ldap = new LdapSearch(dbm, logger)
 def mapping = convertMapping(p_attributes)
 def go = p_action.equals("Import")
@@ -146,7 +153,7 @@ println """
     </thead><tbody>
 """;
 
-def processRow = { name, oldObject, newObject, ldapDn ->
+def printRow = { name, oldObject, newObject, ldapDn ->
     if (newObject!=null) {
         def it = newObject.values().iterator();
         while (it.hasNext()) {
@@ -164,7 +171,7 @@ def processRow = { name, oldObject, newObject, ldapDn ->
                 break;
             }
         }
-        if (equals && !p_include_none) {
+        if (equals && !show_unchanged) {
             return;
         }
         
@@ -190,7 +197,7 @@ def processRow = { name, oldObject, newObject, ldapDn ->
                 }
             }
         print "</td>"
-	print "<td>${ldapDn}</td>"
+	    print "<td>${ldapDn}</td>"
         print "</tr>"
     } else if (oldObject != null) {
         print "<tr>"
@@ -212,7 +219,7 @@ def processRow = { name, oldObject, newObject, ldapDn ->
                 if (!k.equals("ServerName")) { print "${k}: ${v2}</br>"; }
             }
         print "</td>"
-	print "<td>${ldapDn}</td>"
+	    print "<td>${ldapDn}</td>"
         print "</tr>"
     }
 }
@@ -229,7 +236,8 @@ def process = {List<?> list,
                Set<String> requiredFields
                -> 
     Map<String,?> inventoryObjects = list.collectEntries{[(key.apply(it.getCustomMap(),it).toUpperCase()): it]};
-    ldapObjects.each { ldapObject ->
+    
+    ldapObjects.each{ ldapObject ->
         def attrs = ldapObject.getAttributes()
         logger.debug("{} {}", ldapObject, attrs)
         
@@ -277,14 +285,22 @@ def process = {List<?> list,
         if (keyId!=null) {
             def object = inventoryObjects.get(keyId.toString().toUpperCase())
             if (object==null) {
+                if (!show_new) {
+                    return;
+                }
+                
                 object = create.get();
                 object.setProject(dbm.getService(com.branegy.service.base.api.ProjectService.class).getCurrentProject())  // TODO: delete in 1.12
                 logger.debug("Creating a new objects")
             } else {
+                if (!show_changed) {
+                    return;
+                }
+                
                 oldProperties = object.getCustomMap();
             }
             
-            processRow(name.apply(newProperties), oldProperties, newProperties, ldapObject.getNameInNamespace())
+            printRow(name.apply(newProperties), oldProperties, newProperties, ldapObject.getNameInNamespace())
             
             if (go && save!=null) {
                 newProperties["LastSyncDate"] = lastSyncDate;
@@ -294,13 +310,21 @@ def process = {List<?> list,
             inventoryObjects.remove(keyId.toString().toUpperCase());
         }
     }
-    inventoryObjects.each{k, v ->
-        processRow(k, v.getCustomMap(), null, null)
-        if (go && delete != null) {
-            delete.accept(v);
+    
+    if (show_deleted) {
+        inventoryObjects.each{k, v ->
+            printRow(k, v.getCustomMap(), null, null)
+            if (go) {
+                if (set_inactive && save!=null) {
+                    v.setCustomData("Active", false);
+                    save.accept(object);
+                }
+                if (!set_inactive && delete != null) {
+                    delete.accept(v);
+                }
+            }
         }
     }
-    
 }
 
 if ("Contacts".equals(p_object_type)) {
@@ -309,8 +333,8 @@ if ("Contacts".equals(p_object_type)) {
         { m,o -> m["ContactName"]},
         { m   -> m["ContactName"]},
         Contact.metaClass.&invokeConstructor,
-        { o   -> contactService.saveContact(o)},
-        null, //{ o -> contactService.deleteContact(o.getId())}
+        { o -> contactService.saveContact(o)},
+        { o -> contactService.deleteContact(o.getId())},
         ["ContactName"] as Set,
     );
     
