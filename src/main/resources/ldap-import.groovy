@@ -293,11 +293,13 @@ def process = {List<?> list,
                 object.setProject(dbm.getService(com.branegy.service.base.api.ProjectService.class).getCurrentProject())  // TODO: delete in 1.12
                 logger.debug("Creating a new objects")
             } else {
+                oldProperties = object.getCustomMap();
+                if (oldProperties[Contact.STATUS]==Contact.STATUS_INACTIVE) {
+                    newProperties[Contact.STATUS]=Contact.STATUS_ACTIVE;
+                }
                 if (!show_changed) {
                     return;
                 }
-                
-                oldProperties = object.getCustomMap();
             }
             
             printRow(name.apply(newProperties), oldProperties, newProperties, ldapObject.getNameInNamespace())
@@ -313,11 +315,14 @@ def process = {List<?> list,
     
     if (show_deleted) {
         inventoryObjects.each{k, v ->
+            if (v.getCustomData(Contact.STATUS) == Contact.STATUS_INACTIVE) {
+                return;
+            }
             printRow(k, v.getCustomMap(), null, null)
             if (go) {
                 if (set_inactive && save!=null) {
-                    v.setCustomData("Active", false);
-                    save.accept(object);
+                    v.setCustomData(Contact.STATUS, Contact.STATUS_INACTIVE); // TODO for other objects
+                    save.accept(v);
                 }
                 if (!set_inactive && delete != null) {
                     delete.accept(v);
