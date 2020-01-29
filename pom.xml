@@ -6,7 +6,7 @@
    <artifactId>ldap-import</artifactId>
    <name>LDAP::Import</name>
    <description>Imports active directory or ldap objects into dbmaster inventory</description>
-   <version>0.2.4-SNAPSHOT</version>
+   <version>0.3.2</version>
    <packaging>bundle</packaging>
 
    <parent>
